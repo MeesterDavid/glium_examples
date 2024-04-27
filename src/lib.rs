@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
-use gl::types::GLfloat;
+use gl::types::{GLenum, GLfloat};
 use raw_window_handle::HasRawWindowHandle;
 use winit::event::{Event, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
@@ -331,6 +331,37 @@ unsafe fn create_shader(
     let shader = gl.CreateShader(shader);
     gl.ShaderSource(shader, 1, [source.as_ptr().cast()].as_ptr(), std::ptr::null());
     gl.CompileShader(shader);
+
+    let mut success: gl::types::GLint = 1;
+
+    gl.GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
+
+    if success == 0{
+        let buf_size: gl::types::GLsizei = 512;
+
+        let mut len: gl::types::GLint = 0;
+        unsafe {
+            gl.GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
+        }
+    
+        // allocate buffer of correct size
+        let mut buffer: Vec<u8> = Vec::with_capacity(len as usize + 1);
+        // fill it with len spaces
+        buffer.extend([b' '].iter().cycle().take(len as usize));
+        // convert buffer to CString
+        let error: CString = unsafe { CString::from_vec_unchecked(buffer) };
+    
+        unsafe {
+            gl.GetShaderInfoLog(
+                shader,
+                len,
+                std::ptr::null_mut(),
+                error.as_ptr() as *mut gl::types::GLchar
+            );
+        }    
+
+        println!("{:?}", error.to_string_lossy().into_owned());
+    }
     shader
 }
 
@@ -349,13 +380,13 @@ static VERTEX_DATA: [f32; 15] = [
 ];
 
 const VERTEX_SHADER_SOURCE: &[u8] = b"
-#version 100
-precision mediump float;
+#version 400
+precision highp float;
 
-attribute vec2 position;
-attribute vec3 color;
+in vec2 position;
+in vec3 color;
 
-varying vec3 v_color;
+out vec3 v_color;
 
 void main() {
     gl_Position = vec4(position, 0.0, 1.0);
@@ -364,12 +395,13 @@ void main() {
 \0";
 
 const FRAGMENT_SHADER_SOURCE: &[u8] = b"
-#version 100
-precision mediump float;
+#version 400
+precision highp float;
 
-varying vec3 v_color;
+in vec3 v_color;
+out vec4 kleur;
 
 void main() {
-    gl_FragColor = vec4(v_color, 1.0);
+    kleur = vec4(v_color, 1.0);
 }
 \0";
