@@ -345,7 +345,7 @@ impl Renderer {
             self.gl.Clear(gl::COLOR_BUFFER_BIT);
 
             
-            self.gl.DrawElements(gl::TRIANGLES, 4, 2, std::ptr::null());
+            self.gl.DrawElements(gl::TRIANGLES, 4, gl::UNSIGNED_BYTE, std::ptr::null());
 
             get_error(&self.gl, "na draw");
         }
@@ -434,7 +434,7 @@ static VERTEX_DATA: [f32; 24] = [
 
 ];
 
-static INDICES: [u16; 12] = [
+static INDICES: [u8; 12] = [
     0, 1, 2,
     2, 1, 0,
     1, 2, 0,
