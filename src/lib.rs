@@ -17,6 +17,8 @@ use glutin::surface::SwapInterval;
 
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
+use crate::gl::INVALID_FRAMEBUFFER_OPERATION;
+
 pub mod gl {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
@@ -199,7 +201,32 @@ pub struct Renderer {
     program: gl::types::GLuint,
     vao: gl::types::GLuint,
     vbo: gl::types::GLuint,
+    ebo: gl::types::GLuint,
     gl: gl::Gl,
+}
+
+
+pub fn get_error(gl: &gl::Gles2, message: &str) {
+    let error: u32;
+    unsafe {
+        error = gl.GetError();
+    }
+
+    println!("{}\t{}", message,
+    match error {
+        gl::INVALID_ENUM => "invalid enum",
+        gl::INVALID_VALUE => "invalid value",
+        gl::INVALID_OPERATION => "invalid operation",
+        gl::INVALID_FRAMEBUFFER_OPERATION => "invalid framebuffer operation",
+        gl::OUT_OF_MEMORY => "out of memory",
+        gl::NO_ERROR => "no error",
+        _ => "?"
+
+    });
+    
+    if error != gl::NO_ERROR {
+        std::process::exit(1);
+    }
 }
 
 impl Renderer {
@@ -250,30 +277,49 @@ impl Renderer {
                 gl::STATIC_DRAW,
             );
 
-            let pos_attrib = gl.GetAttribLocation(program, b"position\0".as_ptr() as *const _);
-            let color_attrib = gl.GetAttribLocation(program, b"color\0".as_ptr() as *const _);
-            gl.VertexAttribPointer(
-                pos_attrib as gl::types::GLuint,
-                2,
-                gl::FLOAT,
-                0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
-            );
-            gl.VertexAttribPointer(
-                color_attrib as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                (2 * std::mem::size_of::<f32>()) as *const () as *const _,
-            );
-            gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
-            gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+            get_error(&gl, "na vullen van vbo, voor ebo");
 
-            Self { program, vao, vbo, gl }
+            let mut ebo = std::mem::zeroed();
+            gl.GenBuffers(1, &mut ebo);
+            gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+            get_error(&gl, "na klaarzetten en binden ebo buffer");
+
+            gl.BufferData(
+                gl::ELEMENT_ARRAY_BUFFER, 
+                (INDICES.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr, 
+                INDICES.as_ptr() as *const _, 
+                gl::STATIC_DRAW
+            );
+
+            get_error(&gl, "na vullen ebo buffer");
+
+            
+
+            // let pos_attrib = gl.GetAttribLocation(program, b"position\0".as_ptr() as *const _);
+            // let color_attrib = gl.GetAttribLocation(program, b"color\0".as_ptr() as *const _);
+            // gl.VertexAttribPointer(
+            //     pos_attrib as gl::types::GLuint,
+            //     3,
+            //     gl::FLOAT,
+            //     0,
+            //     6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+            //     std::ptr::null(),
+            // );
+            // gl.VertexAttribPointer(
+            //     color_attrib as gl::types::GLuint,
+            //     3,
+            //     gl::FLOAT,
+            //     0,
+            //     6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+            //     (2 * std::mem::size_of::<f32>()) as *const () as *const _,
+            // );
+            // gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
+            // gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+
+            Self { program, vao, vbo, ebo, gl }
         }
     }
+
 
     pub fn draw(&self) {
         self.draw_with_clear_color(0.1, 0.1, 0.1, 0.9)
@@ -292,9 +338,16 @@ impl Renderer {
             self.gl.BindVertexArray(self.vao);
             self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
 
+            self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+
+
             self.gl.ClearColor(red, green, blue, alpha);
             self.gl.Clear(gl::COLOR_BUFFER_BIT);
-            self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
+
+            
+            self.gl.DrawElements(gl::TRIANGLES, 4, 2, std::ptr::null());
+
+            get_error(&self.gl, "na draw");
         }
     }
 
@@ -373,23 +426,32 @@ fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CSt
 }
 
 #[rustfmt::skip]
-static VERTEX_DATA: [f32; 15] = [
-    -0.5, -0.5,  1.0,  0.0,  0.0,
-     0.0,  0.5,  0.0,  1.0,  0.0,
-     0.5, -0.5,  0.0,  0.0,  1.0,
+static VERTEX_DATA: [f32; 24] = [
+     0.5,  0.5,  0.5, 1.0,  0.0,  0.0,
+     0.5, -0.5, -0.5, 0.0,  1.0,  0.0,
+    -0.5,  0.5, -0.5, 0.0,  0.0,  1.0,
+    -0.5, -0.5,  0.5, 0.0,  0.5,  0.5,
+
+];
+
+static INDICES: [u16; 12] = [
+    0, 1, 2,
+    2, 1, 0,
+    1, 2, 0,
+    0, 2, 1
 ];
 
 const VERTEX_SHADER_SOURCE: &[u8] = b"
 #version 400
 precision highp float;
 
-in vec2 position;
+in vec3 position;
 in vec3 color;
 
 out vec3 v_color;
 
 void main() {
-    gl_Position = vec4(position, 0.0, 1.0);
+    gl_Position = vec4(position, 1.0);
     v_color = color;
 }
 \0";
