@@ -390,8 +390,6 @@ unsafe fn create_shader(
     gl.GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
 
     if success == 0{
-        let buf_size: gl::types::GLsizei = 512;
-
         let mut len: gl::types::GLint = 0;
         unsafe {
             gl.GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
@@ -427,18 +425,18 @@ fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CSt
 
 #[rustfmt::skip]
 static VERTEX_DATA: [f32; 24] = [
-     0.5,  0.5,  0.5, 1.0,  0.0,  0.0,
-     0.5, -0.5, -0.5, 0.0,  1.0,  0.0,
-    -0.5,  0.5, -0.5, 0.0,  0.0,  1.0,
-    -0.5, -0.5,  0.5, 0.0,  0.5,  0.5,
+     0.0,  0.5,  0.0, 1.0,  0.0,  0.0, //1
+    -0.0, -0.5, 0.0, 0.0,  1.0,  0.0, //2
+     0.5,  0.0,   0.0, 0.0,  0.0,  1.0, //3
+     -0.5,  0.0,  -0.0, 0.0,  0.5,  0.5, //4
 
 ];
 
 static INDICES: [u8; 12] = [
     0, 1, 2,
-    2, 1, 0,
-    1, 2, 0,
-    0, 2, 1
+    0, 1, 3,
+    0, 2, 1,
+    1, 3, 2
 ];
 
 const VERTEX_SHADER_SOURCE: &[u8] = b"
