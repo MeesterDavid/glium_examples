@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
-use gl::types::{GLenum, GLfloat};
+use gl::types::GLfloat;
 use raw_window_handle::HasRawWindowHandle;
 use winit::event::{Event, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
@@ -17,7 +17,6 @@ use glutin::surface::SwapInterval;
 
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
-use crate::gl::INVALID_FRAMEBUFFER_OPERATION;
 
 pub mod gl {
     #![allow(clippy::all)]
@@ -293,28 +292,31 @@ impl Renderer {
 
             get_error(&gl, "na vullen ebo buffer");
 
-            
 
-            // let pos_attrib = gl.GetAttribLocation(program, b"position\0".as_ptr() as *const _);
-            // let color_attrib = gl.GetAttribLocation(program, b"color\0".as_ptr() as *const _);
-            // gl.VertexAttribPointer(
-            //     pos_attrib as gl::types::GLuint,
-            //     3,
-            //     gl::FLOAT,
-            //     0,
-            //     6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-            //     std::ptr::null(),
-            // );
-            // gl.VertexAttribPointer(
-            //     color_attrib as gl::types::GLuint,
-            //     3,
-            //     gl::FLOAT,
-            //     0,
-            //     6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-            //     (2 * std::mem::size_of::<f32>()) as *const () as *const _,
-            // );
-            // gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
-            // gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+            let pos_attrib = gl.GetAttribLocation(program, b"position\0".as_ptr() as *const _);
+            let color_attrib = gl.GetAttribLocation(program, b"color\0".as_ptr() as *const _);
+            gl.VertexAttribPointer(
+                pos_attrib as gl::types::GLuint,
+                3,
+                gl::FLOAT,
+                0,
+                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                std::ptr::null(),
+            );
+            gl.VertexAttribPointer(
+                color_attrib as gl::types::GLuint,
+                3,
+                gl::FLOAT,
+                0,
+                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                (3 * std::mem::size_of::<f32>()) as *const () as *const _,
+            );
+            gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
+            get_error(&gl, "na enable position attribute in VAO");
+
+            gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+            get_error(&gl, "na enable color attribute in VAO");
+
 
             Self { program, vao, vbo, ebo, gl }
         }
@@ -336,18 +338,23 @@ impl Renderer {
             self.gl.UseProgram(self.program);
 
             self.gl.BindVertexArray(self.vao);
+            get_error(&self.gl, "na bind vao in draw");
+
             self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+            get_error(&self.gl, "na bind vbo in draw");
 
             self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.ebo);
+            get_error(&self.gl, "na bind ebo in draw");
 
 
             self.gl.ClearColor(red, green, blue, alpha);
             self.gl.Clear(gl::COLOR_BUFFER_BIT);
 
             
-            self.gl.DrawElements(gl::TRIANGLES, 4, gl::UNSIGNED_BYTE, std::ptr::null());
+            self.gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
 
             get_error(&self.gl, "na draw");
+
         }
     }
 
@@ -372,6 +379,7 @@ impl Drop for Renderer {
             self.gl.DeleteProgram(self.program);
             self.gl.DeleteBuffers(1, &self.vbo);
             self.gl.DeleteVertexArrays(1, &self.vao);
+            self.gl.DeleteBuffers(1,&self.ebo);
         }
     }
 }
@@ -423,20 +431,21 @@ fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CSt
     }
 }
 
+type Vertex = [f32; 6];
+type TriIndex = [u32; 3];
+
 #[rustfmt::skip]
-static VERTEX_DATA: [f32; 24] = [
-     0.0,  0.5,  0.0, 1.0,  0.0,  0.0, //1
-    -0.0, -0.5, 0.0, 0.0,  1.0,  0.0, //2
-     0.5,  0.0,   0.0, 0.0,  0.0,  1.0, //3
-     -0.5,  0.0,  -0.0, 0.0,  0.5,  0.5, //4
+static VERTEX_DATA: [Vertex; 4] = [
+    [ 0.5,  0.5,  0.0, 1.0,  0.0,  0.0], //1
+    [ 0.5, -0.5,  0.0, 0.0,  1.0,  0.0], //2
+    [-0.5, -0.5,  0.0, 0.0,  0.0,  1.0], //3
+    [-0.5,  0.5, -0.0, 0.2,  0.3,  0.4], //4
 
 ];
 
-static INDICES: [u8; 12] = [
-    0, 1, 2,
+static INDICES: [i32; 6] = [
     0, 1, 3,
-    0, 2, 1,
-    1, 3, 2
+    1, 2, 3,
 ];
 
 const VERTEX_SHADER_SOURCE: &[u8] = b"
